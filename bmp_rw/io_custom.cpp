@@ -3,7 +3,7 @@
 
 
 //image composition functions
-
+io_comp::io_comp() {}
 io_comp::io_comp(int width, int height, int border) {
     this->width = width;
     this->height = height;
@@ -29,16 +29,16 @@ void io_comp::modify(int toadd) {
 
 io_image::io_image(int num_components, int width, int height, int border) {
     this->num_components = num_components;
-    io_comp * t_comps;
+    this->comps = new io_comp[num_components];
     for (int i = 0; i < num_components; i++) {
-        t_comps[i] = io_comp(width, height, border);
+        this->comps[i] = io_comp(width, height, border);
     }
-    this->comps = t_comps;
     this->image_size = this->comps[0].width*this->comps[0].height*this->num_components;
 }
 
 io_image::~io_image() {
     delete [] this->comps->handle;
+    delete [] this->comps;
 }
 
 /*
@@ -72,7 +72,6 @@ void io_image::read(io_byte * data) {
 io_byte * io_image::write(void) {
     int **cur_comp_pos = new int*[this->num_components];
     io_byte *data = new io_byte[this->image_size];
-    int *cur_comp_pos[this->num_components]; // Tracks current component position
     for ( int i = 0; i < this->num_components; i++ ) {
         cur_comp_pos[i] = this->comps[i].buf;
     }

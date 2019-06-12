@@ -14,6 +14,7 @@ struct io_comp {
     int width, height, border; // Border height and width are the same
     //Handlers will be integers when written to by typecasted to iobyte when written from
     int *buf, *handle;
+    io_comp();
     io_comp(int, int, int);
     ~io_comp();
     //Other functions to perform alterations on
