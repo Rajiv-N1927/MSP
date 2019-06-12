@@ -43,7 +43,7 @@ int
       // Write the image back out again
       io_image my_img = io_image(planes, height, width, 6);
       my_img.read(data);
-      my_img.mod_comp(GREEN, 40);
+      my_img.mod_comp(BLUE, 200);
       io_byte * new_data = my_img.write();
 
       bmp_out out;

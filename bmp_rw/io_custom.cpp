@@ -48,13 +48,13 @@ io_image::~io_image() {
 */
 
 void io_image::read(io_byte * data) {
-    int *cur_comp_pos[this->num_components]; // Tracks current component position
+    int **cur_comp_pos = new int*[this->num_components]; // Tracks current component position
     for ( int i = 0; i < this->num_components; i++ ) {
         cur_comp_pos[i] = this->comps[i].buf;
     }
     io_byte *cur_data_pos, *row_pos; // Tracks current position in data
     int stride = this->comps[0].width*this->num_components;
-    cur_data_pos = data+this->image_size-stride;
+    cur_data_pos = data+this->image_size - stride;
     for (; cur_data_pos != data; cur_data_pos -= stride) {
         for ( int i = 0; i < this->num_components; i++ ) {
             for ( row_pos=cur_data_pos; row_pos < cur_data_pos+stride;
@@ -66,9 +66,11 @@ void io_image::read(io_byte * data) {
             cur_comp_pos[i] += this->comps[i].border;
         }
     }
+    delete [] cur_comp_pos;
 }
 
 io_byte * io_image::write(void) {
+    int **cur_comp_pos = new int*[this->num_components];
     io_byte *data = new io_byte[this->image_size];
     int *cur_comp_pos[this->num_components]; // Tracks current component position
     for ( int i = 0; i < this->num_components; i++ ) {
@@ -89,6 +91,7 @@ io_byte * io_image::write(void) {
             cur_comp_pos[i] += this->comps[i].border;
         }
     }
+    delete [] cur_comp_pos;
     return data;
 }
 
