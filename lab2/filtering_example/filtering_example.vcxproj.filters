@@ -1,0 +1,28 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="main">
+      <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
+      <Extensions>cpp;c;cc;cxx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
+    </Filter>
+    <Filter Include="io_bmp">
+      <UniqueIdentifier>{52c9aed6-1e2d-4054-b20f-5804f0f87447}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="filtering_main.cpp">
+      <Filter>main</Filter>
+    </ClCompile>
+    <ClCompile Include="io_bmp\io_bmp.cpp">
+      <Filter>io_bmp</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="image_comps.h">
+      <Filter>main</Filter>
+    </ClInclude>
+    <ClInclude Include="io_bmp\io_bmp.h">
+      <Filter>io_bmp</Filter>
+    </ClInclude>
+  </ItemGroup>
+</Project>

@@ -52,10 +52,11 @@ void io_image::read(io_byte * data) {
     for ( int i = 0; i < this->num_components; i++ ) {
         cur_comp_pos[i] = this->comps[i].buf;
     }
+    int i = 0; //For testing purposes
     io_byte *cur_data_pos, *row_pos; // Tracks current position in data
     int stride = this->comps[0].width*this->num_components;
-    cur_data_pos = data+this->image_size - stride;
-    for (; cur_data_pos != data; cur_data_pos -= stride) {
+    cur_data_pos = data+this->image_size-stride;
+    for (; cur_data_pos >= data; cur_data_pos -= stride, i++) {
         for ( int i = 0; i < this->num_components; i++ ) {
             for ( row_pos=cur_data_pos; row_pos < cur_data_pos+stride;
                 row_pos+=this->num_components) {
