@@ -28,32 +28,25 @@ int
 
   int err_code=0;
   try {
-      // Read the input image
-      int n, width, height, planes;
-      bmp_in in;
-      if ((err_code = bmp_in__open(&in,argv[1])) != 0)
-        throw err_code;
-      width = in.cols;  height = in.rows;  planes = in.num_components;
-      io_byte *dp, *data = new io_byte[width*height*planes];
-      for (dp=data, n=height; n > 0; n--, dp+=width*planes)
-        if ((err_code = bmp_in__get_line(&in,dp)) != 0)
-          throw err_code;
-      bmp_in__close(&in);
+      //Write the image back out again
+      io_image my_img = io_image(argv[1], 0);
 
-      // Write the image back out again
-      io_image my_img = io_image(planes, height, width, 6);
-      my_img.read(data);
+      //my_img.read(data);
       my_img.mod_comp(BLUE, 200);
-      io_byte * new_data = my_img.write();
+      io_byte * new_data = my_img.write(), *dp;
 
       bmp_out out;
+      int n;
+      int height = my_img.comps[0].height;
+      int width = my_img.comps[0].width;
+      int planes = my_img.num_components;
       if ((err_code = bmp_out__open(&out,argv[2],width,height,planes)) != 0)
         throw err_code;
       for (dp=new_data, n=height; n > 0; n--, dp+=width*planes)
         bmp_out__put_line(&out,dp);
       bmp_out__close(&out);
 
-      delete[] data;
+      delete[] new_data;
     }
   catch (int exc) {
       if (exc == IO_ERR_NO_FILE)

@@ -25,6 +25,7 @@ struct io_image {
     int num_components;
     int image_size;
     io_comp *comps;
+    io_image(char *, int);
     io_image(int, int, int, int); //Num components, height, width, border
     ~io_image();
     void read(io_byte *); // Take in the image data to be broken into components
