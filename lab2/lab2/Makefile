@@ -6,5 +6,5 @@ OBJ = io_bmp.o filtering_main.o io_comps.o
 %.o: %.cpp $(DEPS)
 	$(CC) -g -c -o $@ $< $(CFLAGS)
 
-io_bmp: $(OBJ)
+filtering: $(OBJ)
 	$(CC) -g -o $@ $^ $(CFLAGS)

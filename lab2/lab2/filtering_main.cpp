@@ -104,7 +104,7 @@ int main(int argc, char *argv[])
       for (n=0; n < num_comps; n++)
         input_comps[n].perform_boundary_extension();
       for (n=0; n < num_comps; n++) {
-         // convolve(input_comps+n,output_comps+n);
+         convolve(input_comps+n,output_comps+n, filt->taps, filt->extent);
       }
 
 

@@ -79,8 +79,9 @@ int bmp_in__open(bmp_in *state, const char *fname)
   else
     return(IO_ERR_UNSUPPORTED);
   int palette_entries_used = header.num_colours_used;
-  if (state->num_components != 1)
-    palette_entries_used = 0;
+  if (state->num_components != 1) {
+     palette_entries_used = 0;
+  }
   else if (header.num_colours_used == 0)
     palette_entries_used = (1<<bit_count);
   int header_size = 54 + 4*palette_entries_used;
