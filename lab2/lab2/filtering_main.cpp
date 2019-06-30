@@ -9,41 +9,6 @@
 #include "io_bmp.h"
 #include "image_comps.h"
 
-/* ========================================================================= */
-/*                 Implementation of `my_image_comp' functions               */
-/* ========================================================================= */
-
-/*****************************************************************************/
-/*                  my_image_comp::perform_boundary_extension                */
-/*****************************************************************************/
-
-void my_image_comp::perform_boundary_extension()
-{
-  int r, c;
-
-  // First extend upwards
-  float *first_line = buf;
-  for (r=1; r <= border; r++)
-    for (c=0; c < width; c++)
-      first_line[-r*stride+c] = first_line[c];
-
-  // Now extend downwards
-  float *last_line = buf+(height-1)*stride;
-  for (r=1; r <= border; r++)
-    for (c=0; c < width; c++)
-      last_line[r*stride+c] = last_line[c];
-
-  // Now extend all rows to the left and to the right
-  float *left_edge = buf-border*stride;
-  float *right_edge = left_edge + width - 1;
-  for (r=height+2*border; r > 0; r--, left_edge+=stride, right_edge+=stride)
-    for (c=1; c <= border; c++)
-      {
-        left_edge[-c] = left_edge[0];
-        right_edge[c] = right_edge[0];
-      }
-}
-
 
 /* ========================================================================= */
 /*                              Global Functions                             */
@@ -53,36 +18,31 @@ void my_image_comp::perform_boundary_extension()
 /*                                apply_filter                               */
 /*****************************************************************************/
 
-void apply_filter(my_image_comp *in, my_image_comp *out)
+//Convolves based on the output perspective
+void convolve(my_image_comp *in, my_image_comp *out, float * filter, int extent)
 {
-#define FILTER_EXTENT 4
-#define FILTER_DIM (2*FILTER_EXTENT+1)
-#define FILTER_TAPS (FILTER_DIM*FILTER_DIM)
+    int dim = 2*extent + 1;
+    int taps = dim*dim;
 
-  // Create the filter kernel as a local array on the stack, which can accept
-  // row and column indices in the range -FILTER_EXTENT to +FILTER_EXTENT.
-  float filter_buf[FILTER_TAPS];
-  float *mirror_psf = filter_buf+(FILTER_DIM*FILTER_EXTENT)+FILTER_EXTENT;
+    // Create the filter kernel as a local array on the stack, which can accept
+    // row and column indices in the range -FILTER_EXTENT to +FILTER_EXTENT.
+    float *mirror_psf = filter+(dim*extent)+extent;
           // `mirror_psf' points to the central tap in the filter
-  int r, c;
-  for (r=-FILTER_EXTENT; r <= FILTER_EXTENT; r++)
-    for (c=-FILTER_EXTENT; c <= FILTER_EXTENT; c++)
-      mirror_psf[r*FILTER_DIM+c] = 1.0F / FILTER_TAPS;
 
-  // Check for consistent dimensions
-  assert(in->border >= FILTER_EXTENT);
-  assert((out->height <= in->height) && (out->width <= in->width));
-
-  // Perform the convolution
-  for (r=0; r < out->height; r++)
+    // Check for consistent dimensions
+    assert(in->border >= extent);
+    assert((out->height <= in->height) && (out->width <= in->width));
+    int r, c;
+    // Perform the convolution
+    for (r=0; r < out->height; r++)
     for (c=0; c < out->width; c++)
       {
         float *ip = in->buf + r*in->stride + c;
         float *op = out->buf + r*out->stride + c;
         float sum = 0.0F;
-        for (int y=-FILTER_EXTENT; y <= FILTER_EXTENT; y++)
-          for (int x=-FILTER_EXTENT; x <= FILTER_EXTENT; x++)
-            sum += ip[y*in->stride+x] * mirror_psf[y*FILTER_DIM+x];
+        for (int y=-extent; y <= extent; y++)
+          for (int x=-extent; x <= extent; x++)
+            sum += ip[y*in->stride+x] * mirror_psf[y*dim+x];
         *op = sum;
       }
 }
@@ -91,8 +51,7 @@ void apply_filter(my_image_comp *in, my_image_comp *out)
 /*                                    main                                   */
 /*****************************************************************************/
 
-int
-  main(int argc, char *argv[])
+int main(int argc, char *argv[])
 {
   if (argc != 3)
     {
@@ -112,7 +71,7 @@ int
       my_image_comp *input_comps = new my_image_comp[num_comps];
       for (n=0; n < num_comps; n++)
         input_comps[n].init(height,width,4); // Leave a border of 4
-      
+
       int r; // Declare row index
       io_byte *line = new io_byte[width*num_comps];
       for (r=height-1; r >= 0; r--)
@@ -137,11 +96,16 @@ int
       for (n=0; n < num_comps; n++)
         output_comps[n].init(height,width,0); // Don't need a border for output
 
+
       // Process the image, all in floating point (easy)
       for (n=0; n < num_comps; n++)
         input_comps[n].perform_boundary_extension();
-      for (n=0; n < num_comps; n++)
-        apply_filter(input_comps+n,output_comps+n);
+      for (n=0; n < num_comps; n++) {
+         // convolve(input_comps+n,output_comps+n);  
+      }
+
+
+
 
       // Write the image back out again
       bmp_out out;
