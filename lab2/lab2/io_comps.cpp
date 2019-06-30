@@ -29,14 +29,14 @@ void filter_manager::normalize_filter() {
     int dim = 2*extent + 1;
     int num_taps = dim*dim;
     int r, c;
-    for ( r = 0; r <= dim-1; r++ ) {
+    for ( r = 0; r < dim; r++ ) {
         float *curpos = taps + dim*r;
         for ( c = 0; c < dim; c++ ) {
             sum += curpos[c];
         }
     }
 
-    for ( r = 0; r <= dim-1; r++ ) {
+    for ( r = 0; r < dim; r++ ) {
         float *curpos = taps + dim*r;
         for ( c = 0; c < dim; c++ ) {
             curpos[c] /= sum;
@@ -54,7 +54,7 @@ void filter_manager::mirror_filter() {
     float * mirr_filt = new float[num_taps];
     int r1, r2, c1, c2;
 
-    for ( r1 = 0, r2 = dim; r1 <= dim-1 && r2 >= 1; r1++, r2-- ) {
+    for ( r1 = 0, r2 = dim; r1 < dim && r2 >= 1; r1++, r2-- ) {
         float *filt_pos = taps + r1*dim;
         float *mirr_pos = mirr_filt + r2*dim;
         for ( c1 = 0, c2 = dim-1; c1 < dim && c2 > 0; c1++, c2-- ) {
