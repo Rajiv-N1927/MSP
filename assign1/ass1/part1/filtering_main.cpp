@@ -27,18 +27,18 @@ float *win_sinc(float shift, int extent) {
     float *sinc = new float[dim]; // sin(Pi*x)/Pi*x
     float *hanning = new float[dim]; // 0.5(1+cos(Pi*x/t))
     float *sinc_filt = sinc + extent;
-    float *hann_filt = hanning + extent;
-    for ( int i = -extent; i < extent; i++ ) {
-        sinc_filt[i] = sin( ((2.0F / 5.0F) * PI * ( (float)i - shift ))/(PI * i) );
-        hann_filt[i] = 0.5F*(1 - cos( (2.0F * PI * (float)i - shift) /((float)dim) ));
-        sinc_filt[i] = sinc_filt[i]*hann_filt[i];
+    for ( int i = -extent; i <= extent; i++ ) {
+        sinc_filt[i] = sin( ((2.0F / 5.0F) * PI * ( (float)i - (float)shift )) )/(PI * (float)i);
+        hanning[i+extent] = 0.5F*(1 - cos(( 2.0F * PI * ((float)(i + extent - shift)) / ((float)dim) )));
+        sinc_filt[i] = sinc_filt[i]*hanning[i+extent];
     }
     //Normalization
-    float sum = 0.0F;
-    for ( int i = -extent; i < extent; i++ ) {
+    *sinc_filt = 1.0F;
+    float sum = 0;
+    for ( int i = -extent; i <= extent; i++ ) {
         sum+=sinc_filt[i];
     }
-    for ( int i = -extent; i < extent; i++ ) {
+    for ( int i = -extent; i <= extent; i++ ) {
         sinc_filt[i]/=sum;
     }
     delete[] hanning;
@@ -78,7 +78,7 @@ void sep_convolve(my_image_comp *in, my_image_comp *out, float ** filter,
     int extent, int no_filters) {
     //Only need the centre of the filter since its 1d;
     int r, c;
-    float **filtpos;
+    float **filtpos = new float*[no_filters];
     for ( int i = 0; i < no_filters; i++ ) {
         filtpos[i] = filter[i] + extent;
     }
@@ -90,19 +90,44 @@ void sep_convolve(my_image_comp *in, my_image_comp *out, float ** filter,
     my_image_comp med_comp;
     float *input, *output, *filt;
     med_comp.init( in->height, ceil( (float)in->width / SCALE ), extent );
-    int r, c;
     for ( r = 0; r < med_comp.height; r++ ) {
         for ( c = 0; c < med_comp.width; c++ ) {
             output = med_comp.buf + r*med_comp.stride + c;
-            filt = filtpos[c%no_filters];
+            filt = filtpos[c % no_filters];
             if ( c % no_filters == 0 ) {
                 input = in->buf + r*in->stride + 5*(c/2);
             }
             else if ( c % no_filters == 1) {
                 input = in->buf + r*in->stride + 5*((c-1)/2)+2;
             }
+            float sum = 0.0F;
+            for ( int i = -extent; i <= extent; i++ ) {
+                sum += input[i]*filt[i];
+            }
+            *output = sum;
         }
     }
+    //Perform boundary extension on intermediate filter
+    med_comp.perform_boundary_extension();
+    //Perform convolution vertically
+    for ( c = 0; c < out->width; c++ ) {
+        for ( r = 0; r < out->height; r++ ) {
+            output = out->buf + r*out->stride + c;
+            filt = filtpos[r % no_filters];
+            if ( r % no_filters == 0 ) {
+                input = med_comp.buf + med_comp.stride*(5*(r/2)) + c;
+            }
+            else if ( r % no_filters == 1) {
+                input = med_comp.buf + med_comp.stride*(5*((r-1)/2)+2) + c;
+            }
+            float sum = 0.0F;
+            for ( int i = -extent; i <= extent; i++ ) {
+                sum += input[i*med_comp.stride]*filt[i];
+            }
+            *output = sum;
+        }
+    }
+    delete []filtpos;
 }
 
 
@@ -113,9 +138,9 @@ void sep_convolve(my_image_comp *in, my_image_comp *out, float ** filter,
 
 int main(int argc, char *argv[])
 {
-  if (argc != 3)
+  if (argc != 4)
     {
-      fprintf(stderr,"Usage: %s <in bmp file> <out bmp file>\n",argv[0]);
+      fprintf(stderr,"Usage: %s <in bmp file> <out bmp file> <extent>\n",argv[0]);
       return -1;
     }
 
@@ -158,7 +183,9 @@ int main(int argc, char *argv[])
       // Allocate storage for the filtered output
       my_image_comp *output_comps = new my_image_comp[num_comps];
       for (n=0; n < num_comps; n++)
-        output_comps[n].init(height,width,0); // Don't need a border for output
+        output_comps[n].init( ceil( (float)height/SCALE ),
+            ceil( (float)width/SCALE ), 0 ); // Don't need a border for output
+
       // Process the image, all in floating point (easy)
       for (n=0; n < num_comps; n++)
         input_comps[n].perform_boundary_extension();
@@ -166,10 +193,18 @@ int main(int argc, char *argv[])
       //Get the sinc filters
       float *sinc_none = win_sinc(0, in_extent);
       float *sinc_half = win_sinc(0.5, in_extent);
-      float **filters;
+      int num_filt = 2;
+      float **filters = new float*[num_filt];
       filters[0] = sinc_none;
       filters[1] = sinc_half;
+      for ( n=0; n < num_comps; n++ ) {
+          sep_convolve(input_comps + n, output_comps + n, filters, in_extent, num_filt);
+      }
+
       // Write the image back out again
+      width = output_comps[0].width;
+      height = output_comps[0].height;
+      io_byte *out_line = new io_byte[width*num_comps];
       bmp_out out;
       if ((err_code = bmp_out__open(&out,argv[2],width,height,num_comps)) != 0)
         throw err_code;
@@ -178,7 +213,7 @@ int main(int argc, char *argv[])
           // written upside down in BMP files.
           for (n=0; n < num_comps; n++)
             {
-              io_byte *dst = line+n; // Points to first sample of component n
+              io_byte *dst = out_line+n; // Points to first sample of component n
               float *src = output_comps[n].buf + r * output_comps[n].stride;
               for (int c=0; c < width; c++, dst+=num_comps)
                 *dst = (io_byte) (src[c]+0.5); // The cast to type "io_byte" is
@@ -188,14 +223,16 @@ int main(int argc, char *argv[])
                       // There is in fact not the best way to do the
                       // conversion.  You should fix it up in the lab.
             }
-          bmp_out__put_line(&out,line);
+          bmp_out__put_line(&out,out_line);
         }
       bmp_out__close(&out);
       delete[] line;
+      delete[] out_line;
       delete[] input_comps;
       delete[] output_comps;
       delete[] sinc_none;
       delete[] sinc_half;
+      delete[] filters;
     }
   catch (int exc) {
       if (exc == IO_ERR_NO_FILE)
