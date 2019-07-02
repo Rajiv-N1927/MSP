@@ -28,8 +28,8 @@ float *win_sinc(float shift, int extent) {
     float *hanning = new float[dim]; // 0.5(1+cos(Pi*x/t))
     float *sinc_filt = sinc + extent;
     for ( int i = -extent; i <= extent; i++ ) {
-        sinc_filt[i] = sin( ((2.0F / 5.0F) * PI * ( (float)i - (float)shift )) )/(PI * (float)i);
-        hanning[i+extent] = 0.5F*(1 - cos(( 2.0F * PI * ((float)(i + extent - shift)) / ((float)dim) )));
+        sinc_filt[i] = sin( ((2.0F / 5.0F) * PI * ( (float)i - (float)shift )) ) / (PI * (float)i);
+        hanning[i+extent] = 0.5F - 0.5F*cos(( 2.0F * PI * ((float)(i + extent - shift)) / ((float)dim) ));
         sinc_filt[i] = sinc_filt[i]*hanning[i+extent];
     }
     //Normalization
@@ -216,7 +216,8 @@ int main(int argc, char *argv[])
               io_byte *dst = out_line+n; // Points to first sample of component n
               float *src = output_comps[n].buf + r * output_comps[n].stride;
               for (int c=0; c < width; c++, dst+=num_comps)
-                *dst = (io_byte) (src[c]+0.5); // The cast to type "io_byte" is
+                if ( src[c] < 0 ) src[c] += 128.0F;
+                else *dst = (io_byte) (src[c]); // The cast to type "io_byte" is
                       // required here, since floats cannot generally be
                       // converted to bytes without loss of information.  The
                       // compiler will warn you of this if you remove the cast.
