@@ -47,17 +47,31 @@ void convolve(my_image_comp *in, my_image_comp *out, float * filter, int extent)
       }
 }
 
+void get_intensity(my_image_comp *in, my_image_comp *out, int threshold) {
+    int r, c;
+    // Perform the convolution
+    for (r=0; r < out->height; r++)
+    for (c=0; c < out->width; c++)
+      {
+        float *ip = in->buf + r*in->stride + c;
+        float *op = out->buf + r*out->stride + c;
+        if ( *ip < threshold ) *op = 0;
+        else *op = 255;
+      }
+}
+
 /*****************************************************************************/
 /*                                    main                                   */
 /*****************************************************************************/
 
 int main(int argc, char *argv[])
 {
-  if (argc != 3)
+  if (argc != 5)
     {
-      fprintf(stderr,"Usage: %s <in bmp file> <out bmp file>\n",argv[0]);
+      fprintf(stderr,"Usage: %s <in bmp file> <out bmp file> <extent> <threshold>\n",argv[0]);
       return -1;
     }
+
 
   int err_code=0;
   try {
@@ -68,6 +82,11 @@ int main(int argc, char *argv[])
 
       int width = in.cols, height = in.rows;
       int n, num_comps = in.num_components;
+
+      //For morphology!!
+      int in_extent = atoi(argv[3]);
+      int thresh = atoi(argv[4]);
+
       my_image_comp *input_comps = new my_image_comp[num_comps];
       for (n=0; n < num_comps; n++)
         input_comps[n].init(height,width, 3); // h1 extent is 2
@@ -97,15 +116,16 @@ int main(int argc, char *argv[])
         output_comps[n].init(height,width,0); // Don't need a border for output
 
       //Filter manager works for one image only
-      filter_manager *filt = new filter_manager();
-      filt->init(h1, 2);
-      filt->normalize_filter();
-      filt->mirror_filter();
+      // filter_manager *filt = new filter_manager();
+      // filt->init(h1, 2);
+      // filt->normalize_filter();
+      // filt->mirror_filter();
+
       // Process the image, all in floating point (easy)
       for (n=0; n < num_comps; n++)
         input_comps[n].perform_boundary_extension();
       for (n=0; n < num_comps; n++) {
-         convolve(input_comps+n,output_comps+n, filt->taps, filt->extent);
+         get_intensity(input_comps+n,output_comps+n, thresh);
       }
 
       // Write the image back out again
