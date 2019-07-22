@@ -167,3 +167,22 @@ void struct_set::setCoord(char * coord) {
     this->x = atoi(x_to_conv);
     this->y = atoi(y_to_conv);
 }
+
+/* Structure setting for circlular set */
+void circle_set::init(float radius) {
+    this->radius = radius;
+    float rt = pow((radius + 0.5), 2);
+    this->c_set = new struct_set[(int)(4*radius*radius)];
+    int r, pos, c;
+    for ( r = -(int)radius, pos = 0; r < (int)radius; r++ ) {
+        for ( c = -(int)radius; c < (int)radius; c++ ) {
+            if ( (pow(r, 2) + pow(c, 2)) < rt ) {
+                //printf("c_x: %d, c_y: %d\n", c, r);
+                c_set[pos].x = c;
+                c_set[pos].y = r;
+                pos++;
+            }
+        }
+    }
+    this->no_components = pos;
+}

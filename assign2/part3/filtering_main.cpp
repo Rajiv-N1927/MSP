@@ -10,7 +10,8 @@
 #include "image_comps.h"
 #include "filters.h"
 #include <unistd.h>
-#include <math.h>
+
+#define ARGS_START 5
 
 
 /* ========================================================================= */
@@ -71,10 +72,10 @@ void erode_image(my_image_comp *in, my_image_comp *out,
         for (c=0; c < out->width; c++) {
             float *ip = in->buf + r*in->stride + c;
             float *op = out->buf + r*out->stride + c;
-            *op = *ip;
+            *op = 255;
             for ( int pos = 0; pos < num_coord; pos++ ) {
                 float val = *( ip + in_set[pos].x + in->stride*in_set[pos].y );
-                if ( val < 250 ) {
+                if ( val != 0xFF ) {
                     *op = 0;
                     break;
                 }
@@ -97,7 +98,7 @@ int getExtent(struct_set * coords, int num_coords) {
 
 int main(int argc, char *argv[])
 {
-  if (argc < 4)
+  if (argc < ARGS_START)
     {
       fprintf(stderr,"Usage: %s <in bmp file> <out bmp file> <threshold>\n",argv[0]);
       return -1;
@@ -122,15 +123,22 @@ int main(int argc, char *argv[])
           write(2, msg, 100);
           exit(0);
       }
-      struct_set * s_set = new struct_set[argc-4];
-      for ( int i = 4; i < argc; i++ ) {
-          s_set[i-4].setCoord(argv[i]);
-          printf("xval: %d, yval: %d\n", s_set[i-4].x, s_set[i-4].y);
+      //Setting up circular structure
+      int radius = atoi(argv[4]);
+      struct circle_set myset;
+      myset.init(radius);
+
+      struct_set * s_set = new struct_set[argc-ARGS_START];
+      int num_coords = argc-ARGS_START;
+      for ( int i = ARGS_START; i < argc; i++ ) {
+          s_set[i-ARGS_START].setCoord(argv[i]);
+          // printf("xval: %d, yval: %d\n",
+          //   s_set[i-ARGS_START].x, s_set[i-ARGS_START].y);
       }
 
       //Get the extent
-      int in_extent = getExtent(s_set, argc-4);
-      printf("The extent is %d\n", in_extent);
+      int in_extent = getExtent(s_set, num_coords);
+      if ( radius > in_extent ) in_extent = radius;
 
       my_image_comp *input_comps = new my_image_comp[num_comps];
       for (n=0; n < num_comps; n++)
@@ -171,7 +179,7 @@ int main(int argc, char *argv[])
       for (n=0; n < num_comps; n++) {
         get_intensity(input_comps+n,int_output_comps+n, thresh);
         int_output_comps[n].perform_symmetric_extension();
-        erode_image(int_output_comps+n,output_comps+n, s_set, argc-4);
+        erode_image(int_output_comps+n,output_comps+n, myset.c_set, myset.no_components);
       }
 
       // Write the image back out again

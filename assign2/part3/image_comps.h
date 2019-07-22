@@ -1,5 +1,7 @@
 #include <stddef.h>
 #include <stdlib.h>
+#include <stdio.h>
+#include <math.h>
 /*****************************************************************************/
 // File: image_comps.h
 // Author: David Taubman
@@ -14,6 +16,13 @@
 struct struct_set {
     int x, y;
     void setCoord(char *);
+};
+
+struct circle_set {
+    struct_set * c_set;
+    float radius;
+    int no_components;
+    void init(float);
 };
 
 struct filter_manager {
