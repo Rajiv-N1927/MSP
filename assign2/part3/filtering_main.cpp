@@ -10,6 +10,7 @@
 #include "image_comps.h"
 #include "filters.h"
 #include <unistd.h>
+#include <math.h>
 
 
 /* ========================================================================= */
@@ -52,13 +53,42 @@ void get_intensity(my_image_comp *in, my_image_comp *out, int threshold) {
     int r, c;
     // Perform the convolution
     for (r=0; r < out->height; r++)
-    for (c=0; c < out->width; c++)
-      {
-        float *ip = in->buf + r*in->stride + c;
-        float *op = out->buf + r*out->stride + c;
-        if ( *ip < threshold ) *op = 0;
-        else *op = 255;
-      }
+        for (c=0; c < out->width; c++)
+          {
+            float *ip = in->buf + r*in->stride + c;
+            float *op = out->buf + r*out->stride + c;
+            if ( *ip < threshold ) *op = 0;
+            else *op = 0xFF;
+          }
+}
+
+void erode_image(my_image_comp *in, my_image_comp *out,
+    struct_set * in_set, int num_coord ) {
+
+    int r, c;
+    // Perform the convolution
+    for (r=0; r < out->height; r++)
+        for (c=0; c < out->width; c++) {
+            float *ip = in->buf + r*in->stride + c;
+            float *op = out->buf + r*out->stride + c;
+            *op = *ip;
+            for ( int pos = 0; pos < num_coord; pos++ ) {
+                float val = *( ip + in_set[pos].x + in->stride*in_set[pos].y );
+                if ( val < 250 ) {
+                    *op = 0;
+                    break;
+                }
+            }
+        }
+}
+
+int getExtent(struct_set * coords, int num_coords) {
+    int maxVal = 0;
+    for ( int i = 0; i < num_coords; i++ ) {
+        if ( abs(coords[i].x) > maxVal ) maxVal = abs(coords[i].x);
+        if ( abs(coords[i].y) > maxVal ) maxVal = abs(coords[i].y);
+    }
+    return maxVal;
 }
 
 /*****************************************************************************/
@@ -67,7 +97,7 @@ void get_intensity(my_image_comp *in, my_image_comp *out, int threshold) {
 
 int main(int argc, char *argv[])
 {
-  if (argc != 4)
+  if (argc < 4)
     {
       fprintf(stderr,"Usage: %s <in bmp file> <out bmp file> <threshold>\n",argv[0]);
       return -1;
@@ -92,11 +122,24 @@ int main(int argc, char *argv[])
           write(2, msg, 100);
           exit(0);
       }
+      struct_set * s_set = new struct_set[argc-4];
+      for ( int i = 4; i < argc; i++ ) {
+          s_set[i-4].setCoord(argv[i]);
+          printf("xval: %d, yval: %d\n", s_set[i-4].x, s_set[i-4].y);
+      }
+
+      //Get the extent
+      int in_extent = getExtent(s_set, argc-4);
+      printf("The extent is %d\n", in_extent);
 
       my_image_comp *input_comps = new my_image_comp[num_comps];
       for (n=0; n < num_comps; n++)
-        input_comps[n].init(height,width, 3); // h1 extent is 2
+        input_comps[n].init(height,width, 0); // h1 extent is 2
 
+       /* #################################################
+        * --------------SETTING UP THE INPUTS--------------
+        * #################################################
+        */
       int r; // Declare row index
       io_byte *line = new io_byte[width*num_comps];
       for (r=height-1; r >= 0; r--)
@@ -117,21 +160,18 @@ int main(int argc, char *argv[])
       bmp_in__close(&in);
 
       // Allocate storage for the filtered output
+      my_image_comp *int_output_comps = new my_image_comp[num_comps];
       my_image_comp *output_comps = new my_image_comp[num_comps];
-      for (n=0; n < num_comps; n++)
-        output_comps[n].init(height,width,0); // Don't need a border for output
-
-      //Filter manager works for one image only
-      // filter_manager *filt = new filter_manager();
-      // filt->init(h1, 2);
-      // filt->normalize_filter();
-      // filt->mirror_filter();
+      for (n=0; n < num_comps; n++) {
+        int_output_comps[n].init(height,width, in_extent);
+        output_comps[n].init(height,width, 0);
+    }
 
       // Process the image, all in floating point (easy)
-      for (n=0; n < num_comps; n++)
-        input_comps[n].perform_boundary_extension();
       for (n=0; n < num_comps; n++) {
-         get_intensity(input_comps+n,output_comps+n, thresh);
+        get_intensity(input_comps+n,int_output_comps+n, thresh);
+        int_output_comps[n].perform_symmetric_extension();
+        erode_image(int_output_comps+n,output_comps+n, s_set, argc-4);
       }
 
       // Write the image back out again
@@ -159,6 +199,8 @@ int main(int argc, char *argv[])
       delete[] line;
       delete[] input_comps;
       delete[] output_comps;
+      delete[] int_output_comps;
+      delete[] s_set;
     }
   catch (int exc) {
       if (exc == IO_ERR_NO_FILE)
