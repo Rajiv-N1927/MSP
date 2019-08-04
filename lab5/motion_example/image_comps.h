@@ -1,7 +1,11 @@
+#include <stddef.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <math.h>
 /*****************************************************************************/
 // File: image_comps.h
 // Author: David Taubman
-// Last Revised: 30 September, 2007
+// Last Revised: 13 August, 2007
 /*****************************************************************************/
 // Copyright 2007, David Taubman, The University of New South Wales (UNSW)
 /*****************************************************************************/
@@ -9,6 +13,28 @@
 /*****************************************************************************/
 /* STRUCT                        my_image_comp                               */
 /*****************************************************************************/
+struct struct_set {
+    int x, y;
+    void setCoord(char *);
+};
+
+struct circle_set {
+    struct_set * c_set;
+    float radius;
+    int no_components;
+    void init(float);
+};
+
+struct filter_manager {
+    int extent;
+    float *taps;
+    filter_manager();
+    ~filter_manager();
+    void init(float *, int);
+    //Returns a normalized filter
+    void normalize_filter();
+    void mirror_filter();
+};
 
 struct my_image_comp {
     // Data members: (these occupy space in the structure's block of memory)
@@ -19,21 +45,12 @@ struct my_image_comp {
     int *handle; // Points to start of allocated memory buffer
     int *buf; // Points to the first real image sample
     // Function members: (these do not occupy any space in memory)
-    my_image_comp()
-      { width = height = stride = border = 0;  handle = buf = NULL; }
-    ~my_image_comp()
-      { if (handle != NULL) delete[] handle; }
-    void init(int height, int width, int border)
-      {
-        this->width = width;  this->height = height;  this->border = border;
-        stride = width + 2*border;
-        if (handle != NULL)
-          delete[] handle; // Delete mem allocated by any previous `init' call
-        handle = new int[stride*(height+2*border)];
-        buf = handle + (border*stride) + border;
-      }
+    my_image_comp();
+    ~my_image_comp();
+    void init(int, int, int);
     void perform_boundary_extension();
-       // This function is implemented in "filtering_main.cpp".
+       // This function is implemented in "io_comps.cpp".
+    void perform_symmetric_extension();
   };
   /* Notes:
        * This "struct" is actually a C++ class.  For some of you, this may

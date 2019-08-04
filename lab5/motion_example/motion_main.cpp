@@ -10,47 +10,12 @@
 #include "image_comps.h"
 #include "motion.h"
 
-/* ========================================================================= */
-/*                 Implementation of `my_image_comp' functions               */
-/* ========================================================================= */
-
-/*****************************************************************************/
-/*                  my_image_comp::perform_boundary_extension                */
-/*****************************************************************************/
-
-void my_image_comp::perform_boundary_extension()
-{
-  int r, c;
-
-  // First extend upwards
-  int *first_line = buf;
-  for (r=1; r <= border; r++)
-    for (c=0; c < width; c++)
-      first_line[-r*stride+c] = first_line[c];
-
-  // Now extend downwards
-  int *last_line = buf+(height-1)*stride;
-  for (r=1; r <= border; r++)
-    for (c=0; c < width; c++)
-      last_line[r*stride+c] = last_line[c];
-
-  // Now extend all rows to the left and to the right
-  int *left_edge = buf-border*stride;
-  int *right_edge = left_edge + width - 1;
-  for (r=height+2*border; r > 0; r--, left_edge+=stride, right_edge+=stride)
-    for (c=1; c <= border; c++)
-      {
-        left_edge[-c] = left_edge[0];
-        right_edge[c] = right_edge[0];
-      }
-}
-
 /*****************************************************************************/
 /* STATIC                         find_motion                                */
 /*****************************************************************************/
 
 static mvector
-  find_motion(my_image_comp *ref, my_image_comp *tgt,
+  find_motion(my_image_comp *ref, my_image_comp *tgt, int SA_extent,
               int start_row, int start_col, int block_width, int block_height)
   /* This function finds the motion vector which best describes the motion
      between the `ref' and `tgt' frames, over a specified block in the
@@ -64,8 +29,10 @@ static mvector
 {
   mvector vec, best_vec;
   int sad, best_sad=256*block_width*block_height;
-  for (vec.y=-8; vec.y <= 8; vec.y++)   //The size of the vec.y represents the area in which the search occurs in the y direction
-    for (vec.x=-8; vec.x <= 8; vec.x++) //The size of the vec.x represents the area in which the search occurs in the x direction
+  //The size of the vec.y represents the area in which the search occurs in the y direction
+  for (vec.y=-SA_extent; vec.y <= SA_extent; vec.y++)   {
+  //The size of the vec.x represents the area in which the search occurs in the x direction
+    for (vec.x=-SA_extent; vec.x <= SA_extent; vec.x++)
       {
         int ref_row = start_row-vec.y;
         int ref_col = start_col-vec.x;
@@ -90,6 +57,7 @@ static mvector
             best_vec = vec;
           }
       }
+  }
 
   return best_vec;
 }
@@ -157,7 +125,7 @@ int
       my_image_comp mono[2];
       mono[0].init(height,width,4); // Leave a border of 4 (in case needed)
       mono[1].init(height,width,4); // Leave a border of 4 (in case needed)
-      
+
       int n, r, c;
       int num_comps = in[0].num_components;
       io_byte *line = new io_byte[width*num_comps];
@@ -179,7 +147,10 @@ int
       // Allocate storage for the motion compensated output
       my_image_comp output;
       output.init(height,width,0); // Don't need a border for output
-      
+
+      //Search area extent
+      int SA_extent = 8;
+
       // Now perform simple motion estimation and compensation
       int nominal_block_width = 32;
       int nominal_block_height = 32;
@@ -194,7 +165,7 @@ int
               block_width = nominal_block_width;
               if ((c+block_width) > width)
                 block_width = width-c;
-              mvector vec = find_motion(&(mono[0]),&(mono[1]),
+              mvector vec = find_motion(&(mono[0]),&(mono[1]), SA_extent,
                                         r,c,block_width,block_height);
               motion_comp(&(mono[0]),&output,vec,
                           r,c,block_width,block_height);

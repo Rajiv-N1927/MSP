@@ -13,9 +13,20 @@
 #include <stdlib.h>
 #include <stdio.h>
 
-// Simple data types
-typedef unsigned long io_uint32;
-typedef long io_int32;
+// Simple data types:
+// Note: The definitions below should work correctly on most
+// platforms.  Previously the use of "long" in these definitions was
+// problematic for 64-bit compilation under gcc/clang/intel compilers but
+// works fine for MSVC, since they have slightly different interpretations
+// of what "long" means.  If you prefer to make these definitions more robust
+// again, you can include <stdint> and use:
+//     typedef uint32_t io_uint32;
+//     typedef int32_t io_int32;
+// However, <stdint.h> is formally introduced only with C++11, so will not
+// work with all older compilers or C++/C variants, and were not available
+// at the time when this file was written back in 2007.
+typedef unsigned io_uint32;
+typedef int io_int32;
 typedef unsigned char io_byte;
 
 // Error codes
