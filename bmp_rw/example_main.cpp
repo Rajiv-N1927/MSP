@@ -40,11 +40,11 @@ int
           throw err_code;
       bmp_in__close(&in);
 
-      // Write the image back out again
-      // io_image my_img = io_image(planes, height, width, 0);
-      // my_img.read(data);
-      // //my_img.mod_comp(BLUE, 200);
-      // io_byte * new_data = my_img.write();
+      //Write the image back out again
+      io_image my_img = io_image(planes, height, width, 0);
+      my_img.read(data);
+      my_img.mod_comp(BLUE, 200);
+      io_byte * new_data = my_img.write();
 
       bmp_out out;
       if ((err_code = bmp_out__open(&out,argv[2],width,height,planes)) != 0)

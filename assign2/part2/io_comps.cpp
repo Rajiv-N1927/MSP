@@ -154,7 +154,7 @@ void struct_set::setCoord(char * coord) {
     char * y_to_conv = new char[4];
     char * coord_it = coord;
     char * cur = x_to_conv;
-    while ( *coord_it != '\0' ) {
+    while ( *coord_it != '/' ) {
         if ( *coord_it == ',') {
             cur = y_to_conv;
             coord_it++;

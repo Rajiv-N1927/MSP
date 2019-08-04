@@ -177,7 +177,7 @@ void circle_set::init(float radius) {
     for ( r = -(int)radius, pos = 0; r < (int)radius; r++ ) {
         for ( c = -(int)radius; c < (int)radius; c++ ) {
             if ( (pow(r, 2) + pow(c, 2)) < rt ) {
-                //printf("c_x: %d, c_y: %d\n", c, r);
+                printf("c_x: %d, c_y: %d\n", c, r);
                 c_set[pos].x = c;
                 c_set[pos].y = r;
                 pos++;

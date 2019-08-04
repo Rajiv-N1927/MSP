@@ -28,12 +28,12 @@ float *win_sinc(float shift, int extent) {
     float *hanning = new float[dim]; // 0.5(1+cos(Pi*x/t))
     float *sinc_filt = sinc + extent;
     for ( int i = -extent; i <= extent; i++ ) {
-        sinc_filt[i] = sin( ((2.0F / 5.0F) * PI * ( (float)i - (float)shift )) ) / (PI * (float)i);
+        sinc_filt[i] = sin( ((2.0F / 5.0F) * PI * ( (float)i - (float)shift )) ) / (PI * (float)(i-shift));
         hanning[i+extent] = 0.5F - 0.5F*cos(( 2.0F * PI * ((float)(i + extent - shift)) / ((float)dim) ));
         sinc_filt[i] = sinc_filt[i]*hanning[i+extent];
     }
     //Normalization
-    *sinc_filt = 1.0F;
+    if ( (float)shift == 0.0F ) *sinc_filt = 1.0F;
     float sum = 0;
     for ( int i = -extent; i <= extent; i++ ) {
         sum+=sinc_filt[i];
@@ -45,31 +45,45 @@ float *win_sinc(float shift, int extent) {
     return sinc;
 }
 
+float *two_d_sinc(float* sinc, int extent) {
+    int dim = 2*extent+1;
+    int taps = dim*dim;
+    float *two_d_sinc = new float[taps];
+    float *p1 = sinc;
+    float *p2 = sinc;
+    for ( int i = 0; i < dim; i++ ) {
+        for ( int j = 0; j < dim; j++ ) {
+            two_d_sinc[i*dim+j] = p1[i]*p2[j];
+        }
+    }
+    return two_d_sinc;
+}
+
 //Convolves based on the output perspective
 void convolve(my_image_comp *in, my_image_comp *out, float * filter, int extent)
 {
     int dim = 2*extent + 1;
-    int taps = dim*dim;
     // Create the filter kernel as a local array on the stack, which can accept
     // row and column indices in the range -FILTER_EXTENT to +FILTER_EXTENT.
-    float *mirror_psf = filter+(dim*extent)+extent;
-          // `mirror_psf' points to the central tap in the filter
+
+    float *filtpos = filter + extent*dim + extent;
 
     // Check for consistent dimensions
     assert(in->border >= extent);
     assert((out->height <= in->height) && (out->width <= in->width));
     int r, c;
+    float *input, *output;
     // Perform the convolution
     for (r=0; r < out->height; r++)
     for (c=0; c < out->width; c++)
       {
-        float *ip = in->buf + r*in->stride + c;
-        float *op = out->buf + r*out->stride + c;
+        input = in->buf + r*in->stride*(5*(r/2)) + 5*(c/2);
+        output = out->buf + r*out->stride + c;
         float sum = 0.0F;
         for (int y=-extent; y <= extent; y++)
           for (int x=-extent; x <= extent; x++)
-            sum += ip[y*in->stride+x] * mirror_psf[y*dim+x];
-        *op = sum;
+            sum += input[y*in->stride+x] * filtpos[y*dim+x];
+        *output = sum;
       }
 }
 
@@ -197,9 +211,18 @@ int main(int argc, char *argv[])
       float **filters = new float*[num_filt];
       filters[0] = sinc_none;
       filters[1] = sinc_half;
+
+      //Get the sinc filters in 2d
+      float *sinc_2d = two_d_sinc(sinc_none, in_extent);
+
+      //Time this
       for ( n=0; n < num_comps; n++ ) {
           sep_convolve(input_comps + n, output_comps + n, filters, in_extent, num_filt);
       }
+
+      // for ( n=0; n < num_comps; n++ ) {
+      //     convolve(input_comps + n, output_comps + n, sinc_2d, in_extent);
+      // }
 
       // Write the image back out again
       width = output_comps[0].width;
@@ -215,14 +238,14 @@ int main(int argc, char *argv[])
             {
               io_byte *dst = out_line+n; // Points to first sample of component n
               float *src = output_comps[n].buf + r * output_comps[n].stride;
-              for (int c=0; c < width; c++, dst+=num_comps)
-                if ( src[c] < 0 ) src[c] += 128.0F;
-                else *dst = (io_byte) (src[c]); // The cast to type "io_byte" is
-                      // required here, since floats cannot generally be
-                      // converted to bytes without loss of information.  The
-                      // compiler will warn you of this if you remove the cast.
-                      // There is in fact not the best way to do the
-                      // conversion.  You should fix it up in the lab.
+              for (int c=0; c < width; c++, dst+=num_comps) {
+                  *dst = (io_byte) (src[c]); // The cast to type "io_byte" is
+                        // required here, since floats cannot generally be
+                        // converted to bytes without loss of information.  The
+                        // compiler will warn you of this if you remove the cast.
+                        // There is in fact not the best way to do the
+                        // conversion.  You should fix it up in the lab.
+              }
             }
           bmp_out__put_line(&out,out_line);
         }
@@ -234,6 +257,7 @@ int main(int argc, char *argv[])
       delete[] sinc_none;
       delete[] sinc_half;
       delete[] filters;
+      delete[] sinc_2d;
     }
   catch (int exc) {
       if (exc == IO_ERR_NO_FILE)

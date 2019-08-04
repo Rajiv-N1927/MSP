@@ -70,7 +70,7 @@ int main(int argc, char *argv[])
       int n, num_comps = in.num_components;
       my_image_comp *input_comps = new my_image_comp[num_comps];
       for (n=0; n < num_comps; n++)
-        input_comps[n].init(height,width,2); // h1 extent is 2
+        input_comps[n].init(height,width, 3); // h1 extent is 2
 
       int r; // Declare row index
       io_byte *line = new io_byte[width*num_comps];
@@ -96,6 +96,7 @@ int main(int argc, char *argv[])
       for (n=0; n < num_comps; n++)
         output_comps[n].init(height,width,0); // Don't need a border for output
 
+      //Filter manager works for one image only
       filter_manager *filt = new filter_manager();
       filt->init(h1, 2);
       filt->normalize_filter();
@@ -106,9 +107,6 @@ int main(int argc, char *argv[])
       for (n=0; n < num_comps; n++) {
          convolve(input_comps+n,output_comps+n, filt->taps, filt->extent);
       }
-
-
-
 
       // Write the image back out again
       bmp_out out;
@@ -122,7 +120,7 @@ int main(int argc, char *argv[])
               io_byte *dst = line+n; // Points to first sample of component n
               float *src = output_comps[n].buf + r * output_comps[n].stride;
               for (int c=0; c < width; c++, dst+=num_comps)
-                *dst = (io_byte) src[c]; // The cast to type "io_byte" is
+                *dst = (io_byte) (src[c]+0.5); // The cast to type "io_byte" is
                       // required here, since floats cannot generally be
                       // converted to bytes without loss of information.  The
                       // compiler will warn you of this if you remove the cast.
