@@ -151,22 +151,23 @@ void my_image_comp::perform_point_symmetric_extension() {
   //Extending up
   for ( r = 1; r <= border; r++ )
       for ( c = 0; c < width; c++ )
-          upper_bound[-r*stride+c] = buf[r*stride+c];
+          upper_bound[-r*stride+c] = 2*buf[c] - buf[r*stride+c];
   //Extending down
   for ( r = 1; r <= border; r++ )
       for ( c = 0; c < width; c++ )
-          lower_bound[r*stride+c] = lower_bound[-r*stride+c];
+          lower_bound[r*stride+c] = 2*lower_bound[c] - lower_bound[-r*stride+c];
 
   for (r=height+2*border; r > 0; r--, left_edge+=stride, right_edge+=stride)
       for (c=1; c <= border; c++)
       {
-        left_edge[-c] = left_edge[c];
-        right_edge[c] = right_edge[-c];
+        left_edge[-c] = 2*left_edge[0]  - left_edge[c];
+        right_edge[c] = 2*right_edge[0] - right_edge[-c];
       }
 }
 /* Keypoint generator stuff */
 kp_generator::kp_generator() {
   tgt = nullptr;
+  ref = nullptr;
   kp_offsets = nullptr;
   local_vector = nullptr;
   b_extent = sa_extent = delta = 0;
@@ -178,8 +179,10 @@ kp_generator::~kp_generator() {
   if (local_vector != nullptr) delete[] local_vector;
 }
 
-void kp_generator::init(my_image_comp * tgt, int b_ext, int sa_ext, int del) {
+void kp_generator::init(my_image_comp * tgt, my_image_comp * ref,
+    int b_ext, int sa_ext, int del) {
   this->tgt = tgt;
+  this->ref = ref;
   printf("Image props: w %d, h %d\n", tgt->width, tgt->height);
   this->b_extent = b_ext;
   this->sa_extent = sa_ext;
@@ -201,13 +204,13 @@ void kp_generator::init(my_image_comp * tgt, int b_ext, int sa_ext, int del) {
 /*
   Formula: base_offset + delta*(n1, n2)
 */
-void kp_generator::generate_kp(my_image_comp * ref) {
+void kp_generator::generate_kp() {
   int n1, n2, pos = 0;
   for ( n2 = 0; n2 < max_height; n2++ ) {
     for ( n1 = 0; n1 < max_width; n1++ ) {
       kp_offsets[pos].x = base_offset + n1*delta;
       kp_offsets[pos].y = base_offset + n2*delta;
-      sad_vector(ref, kp_offsets[pos].y - b_extent,
+      sad_vector(kp_offsets[pos].y - b_extent,
         kp_offsets[pos].x - b_extent, pos);
       pos++;
     }
@@ -221,8 +224,7 @@ void kp_generator::generate_kp(my_image_comp * ref) {
   Technically a 'private' function. This function runs inside kp_generator
   to produce the vectors as the key points are supplied
 */
-void kp_generator::sad_vector(my_image_comp *ref, int start_row, int start_col,
-  int pos)
+void kp_generator::sad_vector(int start_row, int start_col, int pos)
 {
   mvector vec, best_vec;
   int block_width  = 2*b_extent + 1;
@@ -257,8 +259,35 @@ void kp_generator::sad_vector(my_image_comp *ref, int start_row, int start_col,
           }
       }
   }
-
   local_vector[pos] = best_vec;
+}
+//Billinear interpolation
+void kp_generator::generate_shifted_img(my_image_comp * out) {
+  this->ref->perform_point_symmetric_extension();
+  int shiftx = gx <= 0 ? -ceil(gx) : -ceil(abs(gx)) ;
+  int shifty = gy <= 0 ? -ceil(gy) : -ceil(abs(gy)) ;
+  float delx = abs(abs(gx) - abs(shiftx));
+  float dely = abs(abs(gy) - abs(shifty));
+  printf("x %0.5f, %d, y %0.5f, %d\n", delx, shiftx, dely, shifty);
+  /*
+   * Now set up the values to perform billinear interpolation
+  */
+  int row, col;
+  for ( row = 0; row < out->height; row++ ) {
+    int * outbuf = out->buf + row*out->stride;
+    int * inbuf  = ref->buf + row*ref->stride;
+    for ( col = 0; col < out->width; col++ ) {
+      int * top_left = inbuf + col + shiftx + shifty*ref->stride;
+      int * top_right = top_left + 1;
+      int * bot_left = top_left + ref->stride;
+      int * bot_right = bot_left + 1;
+      //Do the 3 step interpolation
+      float a = *top_left + delx*(*top_right - *top_left);
+      float b = *bot_left + delx*(*bot_right - *bot_left);
+      float c = a + dely*(b-a);
+      outbuf[col] = (int)(c+0.5);
+    }
+  }
 }
 
 void kp_generator::produce_gv() {

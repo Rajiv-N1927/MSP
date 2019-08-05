@@ -98,10 +98,10 @@ static void
 int
   main(int argc, char *argv[])
 {
-  if (argc != 6)
+  if (argc != 7)
     {
       fprintf(stderr,
-              "Usage: %s <bmp frame 1> <bmp frame 2> <Block extent>"
+              "Usage: %s <bmp frame 1> <bmp frame 2> <bmp out> <Block extent>"
               " <Search area extent> <keypoint separation distance>\n",
               argv[0]);
       return -1;
@@ -110,9 +110,9 @@ int
   int err_code=0;
   try {
       //Inputs
-      int block_extent = atoi(argv[3]);
-      int sa_extent    = atoi(argv[4]);
-      int kp_sep       = atoi(argv[5]);
+      int block_extent = atoi(argv[4]);
+      int sa_extent    = atoi(argv[5]);
+      int kp_sep       = atoi(argv[6]);
 
       // Read the input image
       bmp_in in[2];
@@ -129,8 +129,9 @@ int
         }
 
       my_image_comp mono[2];
-      mono[0].init(height,width,4); // Leave a border of 4 (in case needed)
-      mono[1].init(height,width,4); // Leave a border of 4 (in case needed)
+      //Maximum extent is sa_extent, waste of memory but easiest way
+      mono[0].init(height,width, sa_extent);
+      mono[1].init(height,width, sa_extent);
 
       int n, r, c;
       int num_comps = in[0].num_components;
@@ -157,9 +158,11 @@ int
       //Keypoint generator
       kp_generator kp;
       //Find the key points for the target image with specified inputs
-      kp.init(&(mono[1]), block_extent, sa_extent, kp_sep);
+      //First image is the target the next is the reference
+      kp.init(&(mono[1]), &(mono[0]), block_extent, sa_extent, kp_sep);
       //Generate the vectors for image based on target image
-      kp.generate_kp(&(mono[0]));
+      kp.generate_kp();
+      kp.generate_shifted_img(&output);
       // Now perform simple motion estimation and compensation
       int nominal_block_width = 32;
       int nominal_block_height = 32;

@@ -55,7 +55,7 @@ struct my_image_comp {
   */
 
   struct kp_generator {
-    my_image_comp * tgt;
+    my_image_comp * tgt, * ref;
     mvector * kp_offsets, * local_vector;
     float gx, gy;
     int b_extent, sa_extent, delta;
@@ -63,9 +63,10 @@ struct my_image_comp {
     int max_height, max_width, base_offset, num_points;
     kp_generator();
     ~kp_generator();
-    //img, block extent, search area extent, delta
-    void init(my_image_comp *, int, int, int);
-    void generate_kp(my_image_comp *);
-    void sad_vector(my_image_comp *, int, int, int);
+    //tgt img, ref img, block extent, search area extent, delta
+    void init(my_image_comp *, my_image_comp *, int, int, int);
+    void generate_kp();
+    void sad_vector(int, int, int);
     void produce_gv();
+    void generate_shifted_img(my_image_comp *);
   };
