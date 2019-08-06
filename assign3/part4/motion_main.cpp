@@ -8,7 +8,11 @@
 
 #include "io_bmp.h"
 #include "image_comps.h"
-#define PI 3.141592F
+
+#define TRACE(a,b,c,d)     a + d
+#define DET(a,b,c,d)       a*d-b*c
+#define MAX_V              2<<16
+
 
 /*****************************************************************************/
 /* STATIC                         find_motion                                */
@@ -196,6 +200,162 @@ mvector * DOG_vector(my_image_comp * tgt, int &length) {
   length = pos;
   return grad_vec;
 }
+/*
+ * Generates the tensor struct
+ * Each 'point' is comprised of 4 values
+*/
+int * tensor_struct(mvector * dogs, int num_dogs) {
+  int * tensor = new int[4 * num_dogs];
+  for ( int pos = 0, cpos = 0; pos < num_dogs; pos++, cpos += 4 ) {
+    tensor[cpos]   = dogs[pos].x * dogs[pos].x;
+    tensor[cpos+1] = dogs[pos].x * dogs[pos].y;
+    tensor[cpos+2] = dogs[pos].x * dogs[pos].y;
+    tensor[cpos+3] = dogs[pos].y * dogs[pos].y;
+  }
+  return tensor;
+}
+
+/*
+ * At this point decide where to start the struct
+ * Aggregation of tensor struct over a block
+*/
+int * int_tensor(int * tensor_struct, int height,
+    int width, int extent, int &pts) {
+  int dim = 2*extent+1;
+  int num_pts = floor((height-(2*dim))*(width-(2*dim))*4);
+  int * tensor_int = new int[num_pts];
+  int row, col, block_row, block_col, pos = 0;
+  for ( row = dim; row < height - dim; row++ ) {
+    for ( col = dim; col < width - dim; col++, pos+=4 ) {
+      int * ts_pos = tensor_struct + 4*(row*width + col);
+      for ( block_row = 0; block_row < dim; block_row++ ) {
+        int * ts_int_pos = ts_pos + 4*(block_row*width);
+        for ( block_col = 0; block_col < dim; block_col++ ) {
+          int * curpos = ts_int_pos + 4*block_col;
+          tensor_int[pos] += curpos[0];
+          tensor_int[pos+1] += curpos[1];
+          tensor_int[pos+2] += curpos[2];
+          tensor_int[pos+3] += curpos[3];
+        }
+      }
+    }
+  }
+  pts = pos;
+  return tensor_int;
+}
+
+/*
+ * Generate the figure of merits being careful of division by 0
+*/
+
+float * FOM_calc(int * block_tensor, int block_pts) {
+  int fom_pts = block_pts/4;
+  float * fom = new float[fom_pts];
+  int bt_pos = 0, fom_pos = 0;
+  for ( int i = 0; i < fom_pts; i++, bt_pos+=4 ) {
+    float a = (float)block_tensor[bt_pos];
+    float b = (float)block_tensor[bt_pos+1];
+    float c = (float)block_tensor[bt_pos+2];
+    float d = (float)block_tensor[bt_pos+3];
+    float num = DET(a, b, c, d);
+    float den = TRACE(a, b, c, d);
+    fom[i] = den != 0 ? num/den : MAX_V;
+  }
+  return fom;
+}
+
+/*
+ * Generate the keypoints given a threshold tau, and number of keypoints
+ * The vectors are all shifted by 2*extent + 1 in the x and y direction
+ * This is because the FOM are within the bounds dim -> height - dim &
+ * dim -> width - dim.
+ * the low and high start off as -1
+*/
+
+mvector * keyPoints(float &thresh, float &thresh_low, float &thresh_high, int num_kp,
+  float * fom, int height, int width) {
+  //Max number of keypoints possible
+  mvector * kp = new mvector[(height-1)*(width-1)];
+  int kp_pos = 0;
+  int row, col;
+  for ( row = 1; row < height-1; row++ ) {
+    float * fom_pos = fom + row*width;
+    for ( col = 1; col < width-1; col++ ) {
+      float top = fom_pos[(row-1)*width];
+      float left = fom_pos[col-1];
+      float right = fom_pos[col+1];
+      float bot = fom_pos[(row+1)*width];
+      float cur = fom_pos[col];
+      if ( cur >= top && cur >= left && cur >= right
+        && cur >= bot && cur >= thresh) {
+          kp[kp_pos].x = col;
+          kp[kp_pos].y = row;
+          kp_pos++;
+      }
+    }
+  }
+  if ( thresh_low == -1 || thresh_high == -1 ) {
+    if ( kp_pos > num_kp ) {
+      thresh_low = thresh;
+      thresh = 2.0F * thresh;
+    } else if ( kp_pos < num_kp ) {
+      thresh_high = thresh;
+      thresh = 0.5F * thresh;
+    } else { //Success
+      return kp;
+    }
+    //Otherwise stackoverflow!
+    delete[] kp;
+    return keyPoints(thresh, thresh_low,
+      thresh_high, num_kp, fom, height, width);
+  } else { //Both thresholds have been set
+    if ( kp_pos == num_kp ) { //Success
+     printf("Found %d keypoints!\n", kp_pos);
+     return kp;
+    } else if ( kp_pos > num_kp ) { //Threshold Too low
+      thresh_low = thresh;
+    } else if ( kp_pos < num_kp ) { //Threshold Too high
+      thresh_high = thresh;
+    }
+    thresh = 0.5F * (thresh_low + thresh_high);
+    delete[] kp;
+    return keyPoints(thresh, thresh_low,
+      thresh_high, num_kp, fom, height, width);
+  }
+  return kp;
+}
+
+void overlay_image(my_image_comp *in, my_image_comp * img, mvector * vex,
+  int v_off, int pts) {
+  int row, col, pos = 0;
+  for ( int i = 0; i < pts; i++ ) {
+    int * img_pos = img[1].buf + vex[i].x + v_off
+      + (vex[i].y+v_off)*img[1].stride;
+    int * top = img_pos - img[1].stride;
+    int * bot = img_pos + img[1].stride;
+    int * left = img_pos - 1;
+    int * right = img_pos + 1;
+    int * top_right = top + 1;
+    int * top_left = top - 1;
+    int * bot_left = bot - 1;
+    int * bot_right = bot + 1;
+    *top = *bot = *left = *right = *top_right =
+      *top_left = *bot_left = *bot_right = 255;
+  }
+  for ( row = 0; row < img[0].height; row++ ) {
+    for ( col = 0; col < img[0].width; col++ ) {
+      int * pos1 = img[1].buf + row*img[1].stride + col;
+      int * pos2 = img[0].buf + row*img[0].stride + col;
+      int * pos3 = img[2].buf + row*img[2].stride + col;
+      int * main = in->buf + row*in->stride + col;
+      if ( *pos1 == 255 ) {
+        *pos2 = *pos3 = *main/2;
+      } else {
+        *pos1 = *pos2 = *pos3 = *main;
+      }
+    }
+  }
+}
 
 /* ========================================================================= */
 /*                              Global Functions                             */
@@ -221,6 +381,7 @@ int
   try {
       // Inputs
       int extent = atoi(argv[3]);
+      int dim = 2*extent+1;
       int sigma  = atoi(argv[4]);
       int noKp   = atoi(argv[5]);
       // Read the input image
@@ -247,34 +408,57 @@ int
         }
       bmp_in__close(&(in));
 
-      // Allocate storage for the motion compensated output
-      my_image_comp output;
-      output.init(height,width,extent); // Don't need a border for output
+      my_image_comp *output = new my_image_comp[3];
+      for (n=0; n < 3; n++) {
+        output[n].init(height, width, extent);
+      }
       //Filter the input image here
 
       float * gauss_filt = gaussian_filter(sigma, extent);
       //Perform extension
       mono.perform_symmetric_extension();
       //Perform low pass filter with gaussian
-      sep_convolve(&mono, &output, gauss_filt, extent);
+      sep_convolve(&mono, &(output[0]), gauss_filt, extent);
       //Get the gradient vector on the target frame
-      output.perform_symmetric_extension();
-      int length_DOG = 0; //Should be img width * height
-      mvector * dog_vecs = DOG_vector(&output, length_DOG);
-      printf("%d\n", length_DOG);
-
-
+      output[0].perform_symmetric_extension();
+      int length_DOG = 0, len_tensor = 0; //Should be img width * height
+      mvector * dog_vecs = DOG_vector(&(output[0]), length_DOG);
+      int * tensor   = tensor_struct(dog_vecs, length_DOG);
+      int * block_tensor = int_tensor(tensor, output[0].height,
+        output[0].width, extent, len_tensor);
+      float * fom_pts = FOM_calc(block_tensor, len_tensor);
+      //Find the keypoints
+      float thresh = 10.0F;
+      float thresh_low = -1.0F;
+      float thresh_high = -1.0F;
+      int n_height = output[0].height-(2*dim);
+      int n_width  = output[0].width-(2*dim);
+      mvector * kp = keyPoints(thresh, thresh_low, thresh_high, noKp,
+        fom_pts, n_height, n_width);
+      //Overlay the keypoints
+      my_image_comp overlay;
+      overlay.init(height, width, 0);
+      overlay_image(&mono, output, kp, dim, noKp);
+      // Write the image back out again
+      num_comps = 3;
+      width = output[0].width;
+      height = output[0].height;
+      io_byte *out_line = new io_byte[width*num_comps];
       bmp_out out;
-      if ((err_code = bmp_out__open(&out,argv[2],width,height,1)) != 0)
+      if ((err_code = bmp_out__open(&out,argv[2],width,height,num_comps)) != 0)
         throw err_code;
       for (r=height-1; r >= 0; r--)
         { // "r" holds the true row index we are writing, since the image is
           // written upside down in BMP files.
-          io_byte *dst = line; // Points to first sample of component n
-          int *src = output.buf + r * output.stride;
-          for (int c=0; c < width; c++, dst++)
-            *dst = (io_byte) src[c];
-          bmp_out__put_line(&out,line);
+          for (n=0; n < num_comps; n++)
+            {
+              io_byte *dst = out_line+n; // Points to first sample of component n
+              int *src = output[n].buf + r * output[n].stride;
+              for (int c=0; c < width; c++, dst+=num_comps) {
+                  *dst = (io_byte) (src[c]);
+              }
+            }
+          bmp_out__put_line(&out, out_line);
         }
       bmp_out__close(&out);
       delete[] line;
